@@ -3,23 +3,22 @@ import { useState, useEffect, useMemo } from "react";
 import { useAccount, useReadContracts, useWriteContract } from "wagmi";
 import { toast } from "react-toastify";
 import type { Abi } from "viem";
-import { Zap, CornerUpRight, Diamond } from "lucide-react";
+import { Zap, CornerUpRight, Clock } from "lucide-react";
 
 import { abi as oldNftAbi } from "../hooks/abi/abiNFT";
 import { monchilIdAbi } from "../hooks/abi/AbiMonchilID";
 import { upgradeAbi } from "../hooks/abi/AbiUpgrade";
 
 const OLD_NFT_CONTRACT: `0x${string}` = "0xc84932efcBeEdbcf5B25F41461DE3F2b7DB8f5Eb";
-const NEW_NFT_CONTRACT: `0x${string}` = "0xd9145CCE52D386f254917e481eB44e9943F39138";
+const NEW_NFT_CONTRACT: `0x${string}` = "0x5f052CC161d117154CA4FED968EA037bF9cE4F02";
 const UPGRADE_CONTRACT: `0x${string}` = "0x15209966E8455eE1752c9139c3340CbE0CA93600";
 
 const MAX_REALIZED_LEVEL = 2;
 
 const NFT_CONFIG = {
-    old1: { level: 0, id: 1, name: "Happy Mon (ID 1)", image: "/happy.png" },
-    old2: { level: 0, id: 2, name: "Sad Mon (ID 2)", image: "/sad.png" },
-    new1: { level: 1, id: 1, name: "Monchil Lv. 1", image: "/1.png" },
-    new2: { level: 2, id: 2, name: "Monchil Lv. 2", image: "/2.png" },
+    old: { level: 0, name: "Monchil Lv 0", image: "/old.png" },
+    new1: { level: 1, name: "Monchil Lv. 1", image: "/1.png" },
+    new2: { level: 2, name: "Monchil Lv. 2", image: "/2.png" },
 };
 
 type ContractConfig = {
@@ -33,7 +32,7 @@ export function UpgradeNFT() {
     const { address, isConnected } = useAccount();
     const { writeContractAsync, isPending: isTxPending } = useWriteContract();
 
-    const [selectedCardId, setSelectedCardId] = useState<'old1' | 'old2' | 'new1' | 'new2' | null>(null);
+    const [selectedCardId, setSelectedCardId] = useState<'old' | 'new1' | 'new2' | null>(null);
     const [isApproving, setIsApproving] = useState(false);
 
     const userAddress = address || "0x0000000000000000000000000000000000000000";
@@ -75,7 +74,7 @@ export function UpgradeNFT() {
     const isOldApproved = dataArray[7] as boolean | undefined;
     const isNewApproved = dataArray[8] as boolean | undefined;
 
-    const currentLevelId = selectedCardId === 'old1' || selectedCardId === 'old2' ? 0 : selectedCardId === 'new1' ? 1 : 2;
+    const currentLevelId = selectedCardId === 'old' ? 0 : selectedCardId === 'new1' ? 1 : 2;
     const nextLevel = currentLevelId + 1;
     const isLevel1Upgrade = currentLevelId === 0;
 
@@ -92,7 +91,7 @@ export function UpgradeNFT() {
     }
 
     const readyToUpgrade = useMemo(() => {
-        if (selectedCardId === 'old1' || selectedCardId === 'old2') {
+        if (selectedCardId === 'old') {
             return (balances.old1 ?? 0n) >= 1n && (balances.old2 ?? 0n) >= 1n;
         } else if (selectedCardId === 'new1') {
             return (balances.new1 ?? 0n) >= 2n;
@@ -165,24 +164,21 @@ export function UpgradeNFT() {
     };
 
     const renderNftCard = (
-        cardKey: 'old1' | 'old2' | 'new1' | 'new2', 
+        cardKey: 'old' | 'new1' | 'new2', 
         name: string, 
         imageSrc: string, 
-        balance: bigint | undefined, 
+        mainBalance: bigint | undefined, 
         levelLabel: string,
         isUpgradeable: boolean
     ) => {
         const isSelected = selectedCardId === cardKey;
-        const safeBalance = balance ?? 0n; 
+        const safeMainBalance = mainBalance ?? 0n; 
         
-        const displayBalanceString = safeBalance.toString();
-        const displayCount = displayBalanceString === '0' ? 0 : Number(displayBalanceString);
+        const displayCount = Number(safeMainBalance.toString());
         
-        const isClickable = isConnected && (cardKey === 'new1' || cardKey === 'new2');
+        const isClickable = isConnected && (cardKey === 'new1' || cardKey === 'new2' || cardKey === 'old');
         
-        const isOldComplete = (balances.old1 ?? 0n) >= 1n && (balances.old2 ?? 0n) >= 1n;
-        const showReadyBadge = (cardKey.startsWith('old') && isOldComplete) || 
-                               (cardKey === 'new1' && isUpgradeable);
+        const showReadyBadge = (cardKey === 'new1' && isUpgradeable);
 
 
         return (
@@ -195,7 +191,7 @@ export function UpgradeNFT() {
                     ${showReadyBadge && !isSelected ? 'border-yellow-400' : ''}
                 `}
             >
-                {displayCount > 0 && (
+                {cardKey !== 'old' && displayCount > 0 && (
                     <span className="absolute top-0 right-0 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded-bl-lg rounded-tr-xl z-10">
                         x{displayCount}
                     </span>
@@ -213,7 +209,15 @@ export function UpgradeNFT() {
                     className={`w-full h-auto rounded-lg mb-2 object-cover ${!isConnected ? 'grayscale' : ''}`} 
                 />
                 <p className="text-sm font-semibold text-white truncate">{name}</p>
-                <p className="text-xs text-gray-400">OWN: {displayCount}</p>
+                
+                {cardKey === 'old' ? (
+                    <div className="text-xs text-gray-400 mt-1">
+                        <p>OWN HAPPY: {Number(balances.old1 ?? 0n)}</p>
+                        <p>OWN SAD: {Number(balances.old2 ?? 0n)}</p>
+                    </div>
+                ) : (
+                    <p className="text-xs text-gray-400">OWN: {displayCount}</p>
+                )}
                 <p className="text-xs text-gray-400">{levelLabel}</p>
             </div>
         );
@@ -224,14 +228,29 @@ export function UpgradeNFT() {
             return <p className="text-gray-400">Click an NFT card to begin the upgrade process.</p>;
         }
 
-        if (selectedCardId === 'old1' || selectedCardId === 'old2') {
-            const targetLevel = 1;
+        if (selectedCardId === 'old' || selectedCardId === 'new1') {
+            const isOld = selectedCardId === 'old';
+            const currentLevel = isOld ? 0 : 1;
+            const targetLevel = currentLevel + 1;
             
-            const levelLabel = "Old NFT (ID 1 & 2)";
-            const feeDisplay = fees[1 as keyof typeof fees] > 0n ? `${Number(fees[1 as keyof typeof fees]) / 1e18} ETH` : 'N/A';
-            const requirementMessage = `1x Happy Mon & 1x Sad Mon (Transferred).`;
-            const approvalStatus = isOldApproved ? '✅ Approved' : '❌ Needed';
-            const contractToApprove = 'Old NFT';
+            const levelLabel = isOld ? "Old Monchil (Lv 0)" : `Monchil Lv. ${currentLevel}`;
+            const feeDisplay = fees[targetLevel as keyof typeof fees];
+            const feeMon = Number(feeDisplay) / 1e18;
+            
+            const dailyEarn = isOld ? '0.4' : '4';
+            
+            let requirementMessage: string;
+            if (isOld) {
+                requirementMessage = `Needs 1x Happy Mon & 1x Sad Mon to upgrade.`;
+            } else {
+                requirementMessage = `Needs 2x Lv ${currentLevel} NFT to upgrade.`;
+            }
+            
+            const approvalStatus = isOld 
+                ? '✅ Approved' 
+                : (isNewApproved ? '✅ Approved' : '❌ Approval Needed');
+            
+            const contractToApprove = isOld ? 'Old NFT' : 'New NFT';
 
             return (
                 <div className="bg-gray-700 p-4 rounded-xl text-left">
@@ -240,54 +259,43 @@ export function UpgradeNFT() {
                     </h3>
                     
                     <p className="text-gray-300 mb-1">
-                        <span className="font-bold">Needed:</span> {requirementMessage}
+                        <span className="font-bold">Requirements:</span> {requirementMessage}
+                    </p>
+                    <p className="text-gray-300 mb-1">
+                        <span className="font-bold">Fee:</span> {feeMon} $MON
                     </p>
                     <p className="text-gray-300 mb-3">
-                        <span className="font-bold">Fee:</span> {feeDisplay}
+                        <span className="font-bold">Daily Earn:</span> {dailyEarn} $MON
                     </p>
 
                     <div className="mb-4 text-sm">
                         <p className="text-gray-400">Approval Status for {contractToApprove}: {approvalStatus}</p>
                     </div>
 
-                    {renderActionButton(true)}
+                    {renderActionButton(isOld)}
                 </div>
             );
 
         } else if (selectedCardId === 'new2') {
-             return <p className="text-gray-400 font-bold">Monchil Lv. 2 adalah level tertinggi yang dirilis saat ini.</p>;
+             return (
+                <div className="bg-gray-700 p-4 rounded-xl text-center">
+                    <h3 className="text-xl font-bold text-yellow-400 mb-3 flex items-center justify-center gap-2">
+                        <Clock className="w-5 h-5"/> LV 3 IS COMING SOON
+                    </h3>
+                    <p className="text-gray-300 mb-1">
+                        Upgrade target: Monchil Lv. 3
+                    </p>
+                    <p className="text-gray-300 mb-1">
+                        Needs 2x Lv 2 NFT to upgrade.
+                    </p>
+                    <p className="text-gray-300">
+                        Estimated Fee: {Number(fees[3 as keyof typeof fees] || 0n) / 1e18} $MON
+                    </p>
+                </div>
+            );
         }
         
-        const currentLevel = currentLevelId; 
-        const targetLevel = currentLevel + 1;
-        
-        const levelLabel = `Monchil Lv. ${currentLevel}`;
-        const feeDisplay = requiredFee > 0n ? `${Number(requiredFee) / 1e18} ETH` : 'N/A';
-        const requirementMessage = `2x Monchil Lv. ${currentLevel} (Burned).`;
-        const approvalStatus = isNewApproved ? '✅ Approved' : '❌ Needed';
-        const contractToApprove = 'New NFT';
-
-
-        return (
-            <div className="bg-gray-700 p-4 rounded-xl text-left">
-                <h3 className="text-xl font-bold text-pink-400 mb-3 flex items-center gap-2">
-                    <Zap className="w-5 h-5"/> UPGRADE: {levelLabel} <CornerUpRight className="w-4 h-4 text-purple-400"/> Lv. {targetLevel}
-                </h3>
-                
-                <p className="text-gray-300 mb-1">
-                    <span className="font-bold">Needed:</span> {requirementMessage}
-                </p>
-                <p className="text-gray-300 mb-3">
-                    <span className="font-bold">Fee:</span> {feeDisplay}
-                </p>
-
-                <div className="mb-4 text-sm">
-                    <p className="text-gray-400">Approval Status for {contractToApprove}: {approvalStatus}</p>
-                </div>
-
-                {renderActionButton(false)}
-            </div>
-        );
+        return null;
     };
 
     const renderActionButton = (isOld: boolean) => {
@@ -325,14 +333,12 @@ export function UpgradeNFT() {
             >
                 {isTxPending 
                     ? `Processing...` 
-                    : `Execute Upgrade (${Number(feeToDisplay) / 1e18} ETH)`}
+                    : `Execute Upgrade (${Number(feeToDisplay) / 1e18} $MON)`}
             </button>
         );
     };
 
-    const totalOldNft = (balances.old1 ?? 0n) + (balances.old2 ?? 0n);
-    const totalNewNft = (balances.new1 ?? 0n) + (balances.new2 ?? 0n);
-
+   
     const isOldUpgradeable = (balances.old1 ?? 0n) >= 1n && (balances.old2 ?? 0n) >= 1n;
     const isNew1Upgradeable = (balances.new1 ?? 0n) >= 2n;
 
@@ -342,18 +348,19 @@ export function UpgradeNFT() {
                 <h1 className="text-4xl font-bold text-pink-600 mb-4">
                     Monchil NFT Upgrade Center
                 </h1>
-                <p className="text-gray-400 mb-6 flex items-center justify-center gap-2">
-                    <Diamond className="w-4 h-4 text-purple-400"/> Total Holdings: Old ({totalOldNft.toString()}) | New ({totalNewNft.toString()})
+                
+                <p className="text-gray-400 mb-6 flex items-center justify-center gap-2 text-sm italic">
+                    Upgrade your NFT and get multiplier for Stake and earn $MON
                 </p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    {renderNftCard('old1', NFT_CONFIG.old1.name, NFT_CONFIG.old1.image, balances.old1, 'ID: 1', isOldUpgradeable)}
-                    
-                    {renderNftCard('old2', NFT_CONFIG.old2.name, NFT_CONFIG.old2.image, balances.old2, 'ID: 2', isOldUpgradeable)}
+                    {renderNftCard('old', NFT_CONFIG.old.name, NFT_CONFIG.old.image, balances.old1, 'Lv: 0', isOldUpgradeable)}
                     
                     {renderNftCard('new1', NFT_CONFIG.new1.name, NFT_CONFIG.new1.image, balances.new1 ?? 0n, 'Lv: 1', isNew1Upgradeable)}
                     
                     {renderNftCard('new2', NFT_CONFIG.new2.name, NFT_CONFIG.new2.image, balances.new2 ?? 0n, 'Lv: 2', false)}
+                    
+                    <div className="bg-gray-900 border border-transparent rounded-xl p-3"></div>
                 </div>
 
                 <div className="w-full">
